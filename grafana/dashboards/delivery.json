@@ -1,0 +1,415 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "dora"
+      ],
+      "title": "DORA dashboards",
+      "asDropdown": true,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "liveNow": false,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": [
+    "dora",
+    "azure-devops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "dora-postgres"
+        },
+        "query": "SELECT DISTINCT project FROM deployments ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "repository",
+        "label": "Repository",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "dora-postgres"
+        },
+        "query": "SELECT DISTINCT repository FROM pull_requests WHERE project = '$project' AND repository IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": null,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "pipeline",
+        "label": "Pipeline",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "dora-postgres"
+        },
+        "query": "SELECT DISTINCT pipeline FROM deployments WHERE project = '$project' AND pipeline IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": null,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "DORA \u2014 Delivery",
+  "uid": "dora-delivery",
+  "version": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Delivery (pull requests)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "PR throughput \u2014 merged PRs per week (by repository)",
+      "description": "Completed pull requests per week (SPACE: Activity / delivery volume). Team-level signal; pair with lead time so volume is not rewarded over flow. Filtered by Repository.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', closed_at) AS time, repository AS metric, count(*) AS merged FROM pull_requests WHERE project = '$project' AND status = 'completed' AND closed_at IS NOT NULL AND repository IN (${repository:sqlstring}) AND $__timeFilter(closed_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "PR abandonment rate (weekly)",
+      "description": "Share of PRs abandoned vs (completed + abandoned), by the week the PR was opened. A waste / churn signal (unclear requirements, scope changes, review friction). Filtered by Repository.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "lineWidth": 2
+          },
+          "unit": "percent",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', created_at) AS time, round(100.0 * count(*) FILTER (WHERE status = 'abandoned') / NULLIF(count(*) FILTER (WHERE status IN ('completed','abandoned')), 0), 1) AS \"abandonment %\" FROM pull_requests WHERE project = '$project' AND repository IN (${repository:sqlstring}) AND $__timeFilter(created_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Delivery \u2014 activity & pipeline health",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Active PR contributors per week",
+      "description": "Distinct PR authors per week (SPACE: Activity). CONTEXT ONLY \u2014 use it to normalise throughput, never as an individual target or productivity measure. Filtered by Repository.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "lineWidth": 2
+          },
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', created_at) AS time, count(DISTINCT created_by_email) AS contributors FROM pull_requests WHERE project = '$project' AND repository IN (${repository:sqlstring}) AND $__timeFilter(created_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Deployment duration (median minutes, by env)",
+      "description": "Median stage runtime (started -> finished) per week and environment. An operational efficiency / batch-size signal for the deployment pipeline. Filtered by Pipeline.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "lineWidth": 2
+          },
+          "unit": "m"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', finished_at) AS time, environment AS metric, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finished_at - started_at))/60.0))::numeric, 1) AS median_min FROM deployments WHERE project = '$project' AND pipeline IN (${pipeline:sqlstring}) AND started_at IS NOT NULL AND finished_at IS NOT NULL AND finished_at >= started_at AND $__timeFilter(finished_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Pipeline reliability (deploy fail rate)",
+      "description": "Per-pipeline deployment count and failure rate over the selected time range. Surfaces flaky pipelines worth hardening. Filtered by Pipeline. Note: failures with no recorded timestamp are excluded by the time filter.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fail %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 15,
+                      "color": "orange"
+                    },
+                    {
+                      "value": 30,
+                      "color": "red"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "fail %",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT pipeline, count(*) AS deploys, count(*) FILTER (WHERE NOT success) AS fails, round(100.0 * count(*) FILTER (WHERE NOT success) / NULLIF(count(*), 0), 1) AS \"fail %\" FROM deployments WHERE project = '$project' AND pipeline IN (${pipeline:sqlstring}) AND finished_at IS NOT NULL AND $__timeFilter(finished_at) GROUP BY 1 ORDER BY 4 DESC, 2 DESC"
+        }
+      ]
+    }
+  ]
+}
