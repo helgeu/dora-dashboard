@@ -181,8 +181,9 @@
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "h",
           "decimals": 1,
+          "noValue": "n/a",
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
@@ -215,13 +216,14 @@
     {
       "type": "stat",
       "title": "Mean Time to Restore",
-      "description": "Mean hours from a failed deployment to the next successful deployment of the same pipeline+env, for the selected environment. DORA band: Elite <1h, High <1d, Medium <1w.",
+      "description": "Mean hours from a failed deployment to the next successful deployment of the same pipeline+env, for the selected environment. Shows 'n/a' when there are no failed deployments with a recorded timestamp. DORA band: Elite <1h, High <1d, Medium <1w.",
       "datasource": { "type": "postgres", "uid": "dora-postgres" },
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
       "fieldConfig": {
         "defaults": {
           "unit": "h",
           "decimals": 1,
+          "noValue": "n/a",
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
@@ -431,8 +433,9 @@
       "gridPos": { "h": 6, "w": 6, "x": 0, "y": 27 },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "decimals": 2,
+          "unit": "h",
+          "decimals": 1,
+          "noValue": "n/a",
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
