@@ -153,8 +153,22 @@ docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/dora-export
 The dashboard ships the **four core DORA metrics** (deployment frequency, lead
 time, change failure rate, MTTR) plus a **reliability** section derived from ADO
 bugs (defect inflow, open backlog, bug recovery time, and a per-area breakdown).
-Reliability is populated only when `DORA_RELIABILITY_AREA_PATH` is set. Panels
-are single-project today; multi-project selection is an additive follow-up.
+Reliability is populated only when `DORA_RELIABILITY_AREA_PATH` is set.
+
+It also includes supporting **delivery** and **quality-trend** panels drawn from
+the same data (grounded in DORA/SPACE/Flow guidance, using only columns already
+collected):
+
+- **Delivery:** PR throughput (merged PRs/week by repository), PR abandonment
+  rate, and lead-time p50/p75 spread.
+- **Quality trends:** bug inflow vs outflow, open-bug backlog over time
+  (cumulative), and bug resolution time by severity.
+
+Honest caveats to socialise with stakeholders: lead time / cycle time here is
+**PR-open-to-merge** (not commit-to-production), and change failure rate / MTTR
+are **deploy-level proxies**, because the source data has no commit timestamps
+or incident linkage. Panels are single-project today; multi-project selection is
+an additive follow-up.
 
 ## Keeping the vendored scripts in sync
 
