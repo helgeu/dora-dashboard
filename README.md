@@ -53,9 +53,11 @@ installed and running. Then, in a terminal:
    When you see `load complete`, press `Ctrl+C` to stop watching (the containers
    keep running). On a big project the first pull can take a few minutes.
 
-6. **Open the dashboard.** Go to **http://localhost:3000** in your browser.
+6. **Open the dashboards.** Go to **http://localhost:3000** in your browser.
    Log in with `admin` / `admin` (you can skip the "change password" prompt).
-   The dashboard **DORA → DORA Metrics (Azure DevOps)** opens with your numbers.
+   In the **DORA** folder you get three dashboards — **Core**, **Delivery**, and
+   **Reliability**. Start with **DORA — Core**. A dropdown at the top links
+   between all three (carrying your filters and time range).
 
 7. **Play with it.** Use the dropdowns at the top to switch environment, trunk
    branch, repository, pipeline, and bug area. Use the time picker (top right) to
@@ -80,7 +82,8 @@ That's it. The exporter re-pulls fresh data every hour automatically.
   and the `dora-load` loader on a schedule. PAT auth, so no `az` CLI is needed.
 - **db** — Postgres. Raw rows in `deployments`, `pull_requests`, `bugs`; load
   provenance in `runs`. Idempotent upserts, so history accumulates cleanly.
-- **grafana** — provisioned datasource + dashboard, all version-controlled.
+- **grafana** — provisioned datasource + three dashboards (Core / Delivery /
+  Reliability), all version-controlled.
 
 ## Quick start
 
@@ -90,7 +93,7 @@ docker compose up -d --build
 ```
 
 - Grafana: http://localhost:3000 (default `admin` / `admin`, change in `.env`).
-- Open dashboard **DORA → DORA Metrics (Azure DevOps)**.
+- Open the **DORA** folder → **Core**, **Delivery**, or **Reliability**.
 - The exporter runs once on boot, then every `REFRESH_INTERVAL_SECONDS`
   (default hourly). First load can take a while on large orgs.
 
@@ -150,19 +153,19 @@ docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/dora-export
 
 ## Scope
 
-The dashboard ships the **four core DORA metrics** (deployment frequency, lead
-time, change failure rate, MTTR) plus a **reliability** section derived from ADO
-bugs (defect inflow, open backlog, bug recovery time, and a per-area breakdown).
-Reliability is populated only when `DORA_RELIABILITY_AREA_PATH` is set.
+Panels are organised into three provisioned dashboards (in the **DORA** folder,
+cross-linked via a dropdown):
 
-It also includes supporting **delivery** and **quality-trend** panels drawn from
-the same data (grounded in DORA/SPACE/Flow guidance, using only columns already
-collected):
-
-- **Delivery:** PR throughput (merged PRs/week by repository), PR abandonment
-  rate, and lead-time p50/p75 spread.
-- **Quality trends:** bug inflow vs outflow, open-bug backlog over time
-  (cumulative), and bug resolution time by severity.
+- **DORA — Core:** the four core DORA metrics (deployment frequency, lead time,
+  change failure rate, MTTR) plus deployment and lead-time trends and a recent
+  deployments table. Filters: environment, trunk, repository, pipeline.
+- **DORA — Delivery:** PR throughput (merged/week by repository), PR abandonment
+  rate, active PR contributors (context only), pipeline reliability (deploy fail
+  rate), and deployment duration. Filters: repository, pipeline.
+- **DORA — Reliability:** the ADO-bug proxy — defect inflow, open backlog, bug
+  recovery time, per-area breakdown, inflow vs outflow, backlog over time, and
+  resolution/severity trends. Populated only when `DORA_RELIABILITY_AREA_PATH`
+  is set. Filter: area.
 
 Honest caveats to socialise with stakeholders: lead time / cycle time here is
 **PR-open-to-merge** (not commit-to-production), and change failure rate / MTTR

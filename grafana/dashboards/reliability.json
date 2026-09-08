@@ -1,0 +1,737 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "dora"
+      ],
+      "title": "DORA dashboards",
+      "asDropdown": true,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "liveNow": false,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": [
+    "dora",
+    "azure-devops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "dora-postgres"
+        },
+        "query": "SELECT DISTINCT project FROM deployments ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "dora-postgres"
+        },
+        "query": "SELECT DISTINCT area_path FROM bugs WHERE project = '$project' AND area_path IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": null,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "DORA \u2014 Reliability",
+  "uid": "dora-reliability",
+  "version": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Reliability (ADO-bug proxy)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Defect inflow",
+      "description": "New bugs created per week over the selected time range, for the selected area(s). Lower is better (no official DORA band): <1/wk low inflow, <5/wk moderate.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "noValue": "n/a",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "yellow"
+              },
+              {
+                "value": 5,
+                "color": "red"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT round((count(*) FILTER (WHERE $__timeFilter(created_at)) / GREATEST(1.0, EXTRACT(EPOCH FROM ($__timeTo()::timestamptz - $__timeFrom()::timestamptz))/604800.0))::numeric, 2) AS \"New bugs/week\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Open backlog (now)",
+      "description": "Bugs currently unresolved (no resolved/closed date) for the selected area(s). Point-in-time, not affected by the time range.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Open bugs\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND resolved_at IS NULL"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Bug recovery time (median)",
+      "description": "Median hours from bug created -> resolved, for bugs resolved in the selected time range and area(s). A labelled restore proxy.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 24,
+                "color": "yellow"
+              },
+              {
+                "value": 168,
+                "color": "orange"
+              },
+              {
+                "value": 720,
+                "color": "red"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (resolved_at - created_at))/3600.0))::numeric, 1) AS \"Recovery\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND resolved_at IS NOT NULL AND resolved_at >= created_at AND $__timeFilter(resolved_at)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Bugs in window",
+      "description": "Bugs created within the selected time range and area(s).",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Bugs\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND $__timeFilter(created_at)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "New bugs per week (by area)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', created_at) AS time, regexp_replace(area_path, '^[^\\\\]*\\\\', '') AS metric, count(*) AS bugs FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Bugs by area",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "open"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "median recovery (h)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "bugs",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT regexp_replace(area_path, '^[^\\\\]*\\\\', '') AS area, count(*) AS bugs, count(*) FILTER (WHERE resolved_at IS NULL) AS open, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY (CASE WHEN resolved_at IS NOT NULL AND resolved_at >= created_at THEN EXTRACT(EPOCH FROM (resolved_at - created_at))/3600.0 END)))::numeric, 1) AS \"median recovery (h)\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Reliability \u2014 quality trends",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Bug inflow vs outflow (weekly)",
+      "description": "Bugs opened vs resolved per week. Inflow persistently above outflow means the defect backlog is growing. Filtered by Area.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "lineWidth": 2
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "opened"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "resolved"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT wk AS time, sum(opened) AS \"opened\", sum(closed) AS \"resolved\" FROM (SELECT date_trunc('week', created_at) AS wk, 1 AS opened, 0 AS closed FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) UNION ALL SELECT date_trunc('week', resolved_at), 0, 1 FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND resolved_at IS NOT NULL) x WHERE $__timeFilter(wk) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Open bug backlog over time",
+      "description": "Cumulative unresolved bugs at each week (Flow Load / WIP for defects). Running sum of opened minus resolved across all history, so the trend is exact. Filtered by Area.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "lineWidth": 2
+          },
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "WITH ev AS (SELECT created_at AS ts, 1 AS d FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) UNION ALL SELECT resolved_at, -1 FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND resolved_at IS NOT NULL) SELECT wk AS time, sum(delta) OVER (ORDER BY wk) AS \"open backlog\" FROM (SELECT date_trunc('week', ts) AS wk, sum(d) AS delta FROM ev WHERE ts IS NOT NULL GROUP BY 1) w ORDER BY wk"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Bug resolution time by severity",
+      "description": "Median and p75 days from bug created -> resolved, per severity, for bugs resolved in the selected time range and area(s). Shows whether high-severity defects are prioritised. Filtered by Area.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "median days"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "d"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p75 days"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "d"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "severity",
+            "desc": false
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(NULLIF(severity, ''), '(unset)') AS severity, count(*) AS resolved, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (resolved_at - created_at))/86400.0))::numeric, 1) AS \"median days\", round((percentile_cont(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (resolved_at - created_at))/86400.0))::numeric, 1) AS \"p75 days\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND resolved_at IS NOT NULL AND resolved_at >= created_at AND $__timeFilter(resolved_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Quality \u2014 severity mix",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Bug severity distribution over time (new bugs)",
+      "description": "New bugs per week split by severity. A shift toward higher-severity defects signals eroding quality. Filtered by Area.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', created_at) AS time, COALESCE(NULLIF(severity, ''), '(unset)') AS metric, count(*) AS bugs FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ]
+    }
+  ]
+}
