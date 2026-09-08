@@ -1,0 +1,18 @@
+# Secrets / local config
+.env
+*.local
+
+# Python
+__pycache__/
+*.pyc
+
+# Local test scratch
+.synthtest/
+.rundata/
+
+# Exporter output (generated at runtime)
+dora-out/
+*.csv
+dora-summary.json
+dora-summary.md
+dora_trends.xlsx

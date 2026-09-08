@@ -1,0 +1,14 @@
+# Load dashboard JSON from disk so the dashboard is version-controlled as code.
+apiVersion: 1
+
+providers:
+  - name: DORA
+    orgId: 1
+    folder: DORA
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

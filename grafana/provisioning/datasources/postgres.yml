@@ -1,0 +1,21 @@
+# Provisioned Postgres datasource. Credentials come from environment variables
+# set on the grafana container (see docker-compose.yml), so no secrets are
+# committed here.
+apiVersion: 1
+
+datasources:
+  - name: DORA Postgres
+    uid: dora-postgres
+    type: postgres
+    access: proxy
+    url: ${DORA_PG_HOST}
+    user: ${DORA_PG_USER}
+    database: ${DORA_PG_DATABASE}
+    isDefault: true
+    secureJsonData:
+      password: ${DORA_PG_PASSWORD}
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    editable: false

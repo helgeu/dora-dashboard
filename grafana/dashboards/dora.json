@@ -1,0 +1,628 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": ["dora", "azure-devops"],
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "dora-postgres" },
+        "query": "SELECT DISTINCT project FROM deployments ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false,
+        "current": {}
+      },
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "dora-postgres" },
+        "query": "SELECT DISTINCT environment FROM deployments WHERE project = '$project' AND environment IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false,
+        "current": { "text": "prod", "value": "prod" }
+      },
+      {
+        "name": "target_branch",
+        "label": "Trunk",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "dora-postgres" },
+        "query": "SELECT DISTINCT target_branch FROM pull_requests WHERE project = '$project' AND target_branch IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false,
+        "current": { "text": "main", "value": "main" }
+      },
+      {
+        "name": "repository",
+        "label": "Repository",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "dora-postgres" },
+        "query": "SELECT DISTINCT repository FROM pull_requests WHERE project = '$project' AND repository IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": null,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "pipeline",
+        "label": "Pipeline",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "dora-postgres" },
+        "query": "SELECT DISTINCT pipeline FROM deployments WHERE project = '$project' AND pipeline IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": null,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "dora-postgres" },
+        "query": "SELECT DISTINCT area_path FROM bugs WHERE project = '$project' AND area_path IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": null,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "time": { "from": "now-1y", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "DORA Metrics (Azure DevOps)",
+  "uid": "dora-ado-core",
+  "version": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Headline (${environment})",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Lead Time for Changes (PR merge median)",
+      "description": "Median PR created->merged hours to the trunk branch. DORA band: Elite <=24h, High <=1w, Medium <=1m.",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 24, "color": "yellow" },
+              { "value": 168, "color": "orange" },
+              { "value": 720, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"Lead time\" FROM pull_requests WHERE project = '$project' AND status = 'completed' AND closed_at >= created_at AND target_branch = '$target_branch' AND repository IN (${repository:sqlstring}) AND $__timeFilter(closed_at)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Deployment Frequency",
+      "description": "Successful deployments per week to the selected environment over the selected time range. DORA band: Elite >=7/wk, High >=1/wk, Medium >=0.25/wk.",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "red" },
+              { "value": 0.25, "color": "orange" },
+              { "value": 1, "color": "yellow" },
+              { "value": 7, "color": "green" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT round((count(*) FILTER (WHERE success AND $__timeFilter(finished_at)) / GREATEST(1.0, EXTRACT(EPOCH FROM ($__timeTo()::timestamptz - $__timeFrom()::timestamptz))/604800.0))::numeric, 2) AS \"Deploys/week\" FROM deployments WHERE project = '$project' AND environment = '$environment' AND pipeline IN (${pipeline:sqlstring})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Change Failure Rate",
+      "description": "Failed deployments / all attempted deployments to the selected environment (whole dataset, incl. attempts with no recorded timestamp). DORA band: Elite/High <=15%, Medium <=30%.",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 15, "color": "orange" },
+              { "value": 30, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT round(100.0 * count(*) FILTER (WHERE NOT success) / NULLIF(count(*), 0), 1) AS \"CFR\" FROM deployments WHERE project = '$project' AND environment = '$environment' AND pipeline IN (${pipeline:sqlstring})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Mean Time to Restore",
+      "description": "Mean hours from a failed deployment to the next successful deployment of the same pipeline+env, for the selected environment. DORA band: Elite <1h, High <1d, Medium <1w.",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "yellow" },
+              { "value": 24, "color": "orange" },
+              { "value": 168, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "WITH ev AS (SELECT pipeline_id, environment, finished_at, success FROM deployments WHERE project = '$project' AND environment = '$environment' AND pipeline IN (${pipeline:sqlstring}) AND finished_at IS NOT NULL) SELECT round(avg(EXTRACT(EPOCH FROM (nxt - finished_at))/3600.0)::numeric, 1) AS \"MTTR\" FROM (SELECT f.finished_at, (SELECT min(s.finished_at) FROM ev s WHERE s.pipeline_id = f.pipeline_id AND s.environment = f.environment AND s.success AND s.finished_at > f.finished_at) AS nxt FROM ev f WHERE NOT f.success) x WHERE nxt IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Trends",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Successful deployments per week (by environment)",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "lineWidth": 2
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', finished_at) AS time, environment AS metric, count(*) FILTER (WHERE success) AS deploys FROM deployments WHERE project = '$project' AND finished_at IS NOT NULL AND pipeline IN (${pipeline:sqlstring}) AND $__timeFilter(finished_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Lead time for changes (weekly median, hours)",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "lineWidth": 2
+          },
+          "unit": "h"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', closed_at) AS time, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"median merge hours\" FROM pull_requests WHERE project = '$project' AND status = 'completed' AND closed_at >= created_at AND target_branch = '$target_branch' AND repository IN (${repository:sqlstring}) AND $__timeFilter(closed_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "${environment} deployments & change failure rate (weekly)",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 17 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "stacking": { "mode": "normal", "group": "A" }
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "CFR %" },
+            "properties": [
+              { "id": "custom.drawStyle", "value": "line" },
+              { "id": "custom.stacking", "value": { "mode": "none" } },
+              { "id": "custom.lineWidth", "value": 2 },
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "fail" },
+            "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "success" },
+            "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } } ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', finished_at) AS time, count(*) FILTER (WHERE success) AS \"success\", count(*) FILTER (WHERE NOT success) AS \"fail\", round(100.0 * count(*) FILTER (WHERE NOT success) / NULLIF(count(*), 0), 1) AS \"CFR %\" FROM deployments WHERE project = '$project' AND environment = '$environment' AND pipeline IN (${pipeline:sqlstring}) AND finished_at IS NOT NULL AND $__timeFilter(finished_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Recent deployments",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 17 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "url" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [ { "title": "Open build", "url": "${__value.text}", "targetBlank": true } ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "result" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "succeeded": { "color": "green", "index": 0 }, "failed": { "color": "red", "index": 1 } } }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT finished_at AS \"time\", pipeline, stage, environment, result, branch, url FROM deployments WHERE project = '$project' AND finished_at IS NOT NULL AND pipeline IN (${pipeline:sqlstring}) AND $__timeFilter(finished_at) ORDER BY finished_at DESC LIMIT 100"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Reliability (ADO-bug proxy)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Defect inflow",
+      "description": "New bugs created per week over the selected time range, for the selected area(s). Lower is better (no official DORA band): <1/wk low inflow, <5/wk moderate.",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "yellow" },
+              { "value": 5, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT round((count(*) FILTER (WHERE $__timeFilter(created_at)) / GREATEST(1.0, EXTRACT(EPOCH FROM ($__timeTo()::timestamptz - $__timeFrom()::timestamptz))/604800.0))::numeric, 2) AS \"New bugs/week\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Open backlog (now)",
+      "description": "Bugs currently unresolved (no resolved/closed date) for the selected area(s). Point-in-time, not affected by the time range.",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Open bugs\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND resolved_at IS NULL"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Bug recovery time (median)",
+      "description": "Median hours from bug created -> resolved, for bugs resolved in the selected time range and area(s). A labelled restore proxy.",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 24, "color": "yellow" },
+              { "value": 168, "color": "orange" },
+              { "value": 720, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (resolved_at - created_at))/3600.0))::numeric, 1) AS \"Recovery\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND resolved_at IS NOT NULL AND resolved_at >= created_at AND $__timeFilter(resolved_at)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Bugs in window",
+      "description": "Bugs created within the selected time range and area(s).",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": { "mode": "fixed", "fixedColor": "purple" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Bugs\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND $__timeFilter(created_at)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "New bugs per week (by area)",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 33 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "stacking": { "mode": "normal", "group": "A" }
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "calcs": ["sum"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('week', created_at) AS time, regexp_replace(area_path, '^[^\\\\]*\\\\', '') AS metric, count(*) AS bugs FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) AND $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Bugs by area",
+      "datasource": { "type": "postgres", "uid": "dora-postgres" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 33 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "open" },
+            "properties": [ { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } }, { "id": "color", "value": { "mode": "continuous-BlPu" } } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "median recovery (h)" },
+            "properties": [ { "id": "unit", "value": "h" } ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [ { "displayName": "bugs", "desc": true } ] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "dora-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT regexp_replace(area_path, '^[^\\\\]*\\\\', '') AS area, count(*) AS bugs, count(*) FILTER (WHERE resolved_at IS NULL) AS open, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY (CASE WHEN resolved_at IS NOT NULL AND resolved_at >= created_at THEN EXTRACT(EPOCH FROM (resolved_at - created_at))/3600.0 END)))::numeric, 1) AS \"median recovery (h)\" FROM bugs WHERE project = '$project' AND area_path IN (${area:sqlstring}) GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ]
+    }
+  ]
+}

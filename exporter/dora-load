@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""Load the ADO DORA CSVs into Postgres (idempotent upsert).
+
+Reads the three CSVs produced by the vendored exporters and writes them into the
+`deployments`, `pull_requests`, and `bugs` tables, then records the load in
+`runs`. Re-running with overlapping data updates rows in place (ON CONFLICT), so
+the scheduled refresh never creates duplicates and history simply accumulates as
+new weeks appear.
+
+Connection comes from the standard PG* environment variables (PGHOST, PGPORT,
+PGUSER, PGPASSWORD, PGDATABASE). Organization/project are passed in so every row
+is tagged for future multi-project support.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import datetime as dt
+import os
+import sys
+
+import psycopg
+from psycopg import sql
+
+
+def parse_ts(value: str) -> dt.datetime | None:
+    if not value:
+        return None
+    try:
+        return dt.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def parse_bool(value: str) -> bool | None:
+    if value in ("1", "true", "True"):
+        return True
+    if value in ("0", "false", "False"):
+        return False
+    return None
+
+
+def read_rows(path: str) -> list[dict[str, str]]:
+    if not path or not os.path.exists(path):
+        return []
+    with open(path, newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
+
+
+def upsert(cur, table: str, conflict_cols: list[str], rows: list[dict]) -> int:
+    """Generic ON CONFLICT DO UPDATE upsert. Rows share the same column set."""
+    if not rows:
+        return 0
+    cols = list(rows[0].keys())
+    update_cols = [c for c in cols if c not in conflict_cols]
+    stmt = sql.SQL(
+        "INSERT INTO {table} ({cols}) VALUES ({vals}) "
+        "ON CONFLICT ({conflict}) DO UPDATE SET {updates}"
+    ).format(
+        table=sql.Identifier(table),
+        cols=sql.SQL(", ").join(map(sql.Identifier, cols)),
+        vals=sql.SQL(", ").join(sql.Placeholder() * len(cols)),
+        conflict=sql.SQL(", ").join(map(sql.Identifier, conflict_cols)),
+        updates=sql.SQL(", ").join(
+            sql.SQL("{c} = EXCLUDED.{c}").format(c=sql.Identifier(c)) for c in update_cols
+        ),
+    )
+    cur.executemany(stmt, [[r[c] for c in cols] for r in rows])
+    return len(rows)
+
+
+def map_deployments(rows, org, project):
+    for r in rows:
+        yield {
+            "organization": org,
+            "project": project,
+            "build_id": r.get("build_id", ""),
+            "stage": r.get("stage", ""),
+            "finished_at": parse_ts(r.get("finished_at", "")),
+            "started_at": parse_ts(r.get("started_at", "")),
+            "week": r.get("week") or None,
+            "pipeline_id": r.get("pipeline_id") or None,
+            "pipeline": r.get("pipeline") or None,
+            "build_number": r.get("build_number") or None,
+            "environment": r.get("environment") or None,
+            "result": r.get("result") or None,
+            "success": parse_bool(r.get("success", "")),
+            "branch": r.get("branch") or None,
+            "source_version": r.get("source_version") or None,
+            "url": r.get("url") or None,
+        }
+
+
+def map_prs(rows, org, project):
+    for r in rows:
+        yield {
+            "organization": org,
+            "project": project,
+            "repository": r.get("repository", ""),
+            "pull_request_id": r.get("pull_request_id", ""),
+            "created_at": parse_ts(r.get("created_at", "")),
+            "closed_at": parse_ts(r.get("closed_at", "")),
+            "title": r.get("title") or None,
+            "status": r.get("status") or None,
+            "created_by": r.get("created_by") or None,
+            "created_by_email": r.get("created_by_email") or None,
+            "source_branch": r.get("source_branch") or None,
+            "target_branch": r.get("target_branch") or None,
+            "url": r.get("url") or None,
+        }
+
+
+def map_bugs(rows, org, project):
+    for r in rows:
+        yield {
+            "organization": org,
+            "project": project,
+            "id": r.get("id", ""),
+            "created_at": parse_ts(r.get("created_at", "")),
+            "resolved_at": parse_ts(r.get("resolved_at", "")),
+            "week": r.get("week") or None,
+            "state": r.get("state") or None,
+            "severity": r.get("severity") or None,
+            "area_path": r.get("area_path") or None,
+            "title": r.get("title") or None,
+            "tags": r.get("tags") or None,
+            "assigned_to": r.get("assigned_to") or None,
+            "url": r.get("url") or None,
+        }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Load ADO DORA CSVs into Postgres.")
+    parser.add_argument("--organization", required=True)
+    parser.add_argument("--project", required=True)
+    parser.add_argument("--since", required=True, help="Window start YYYY-MM-DD (for runs table).")
+    parser.add_argument("--input-dir", default=".", help="Directory holding the exporter CSVs.")
+    args = parser.parse_args()
+
+    deploys = list(map_deployments(read_rows(os.path.join(args.input_dir, "ado_deployments.csv")), args.organization, args.project))
+    prs = list(map_prs(read_rows(os.path.join(args.input_dir, "ado_prs.csv")), args.organization, args.project))
+    bugs = list(map_bugs(read_rows(os.path.join(args.input_dir, "ado_bugs.csv")), args.organization, args.project))
+
+    with psycopg.connect() as conn:
+        with conn.cursor() as cur:
+            n_dep = upsert(cur, "deployments", ["organization", "project", "build_id", "stage"], deploys)
+            n_pr = upsert(cur, "pull_requests", ["organization", "project", "repository", "pull_request_id"], prs)
+            n_bug = upsert(cur, "bugs", ["organization", "project", "id"], bugs)
+            cur.execute(
+                "INSERT INTO runs (organization, project, since, deployments, pull_requests, bugs) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                (args.organization, args.project, args.since, n_dep, n_pr, n_bug),
+            )
+        conn.commit()
+
+    print(f"Loaded: {n_dep} deployments, {n_pr} PRs, {n_bug} bugs", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

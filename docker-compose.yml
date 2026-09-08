@@ -1,0 +1,72 @@
+# DORA dashboard stack: Postgres (store) + exporter (ADO -> CSV -> Postgres) +
+# Grafana (visualisation). Bring it up with:  docker compose up -d --build
+#
+# All configuration comes from .env (copy .env.example -> .env and fill it in).
+# No secrets live in this file.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dora}
+      POSTGRES_DB: ${POSTGRES_DB:-dora}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # schema.sql runs once, on first init of an empty data volume.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dora} -d ${POSTGRES_DB:-dora}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  exporter:
+    build: ./exporter
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Postgres connection (psycopg reads these PG* vars).
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-dora}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-dora}
+      PGDATABASE: ${POSTGRES_DB:-dora}
+      # ADO source + auth.
+      AZURE_DEVOPS_EXT_PAT: ${ADO_PAT}
+      DORA_ORG: ${DORA_ORG}
+      DORA_PROJECT: ${DORA_PROJECT}
+      DORA_SINCE: ${DORA_SINCE:-}
+      DORA_TARGET_BRANCH: ${DORA_TARGET_BRANCH:-main}
+      DORA_PROD_ENV: ${DORA_PROD_ENV:-prod}
+      DORA_RELIABILITY_AREA_PATH: ${DORA_RELIABILITY_AREA_PATH:-}
+      REFRESH_INTERVAL_SECONDS: ${REFRESH_INTERVAL_SECONDS:-3600}
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Passed through to the provisioned Postgres datasource.
+      DORA_PG_HOST: db:5432
+      DORA_PG_USER: ${POSTGRES_USER:-dora}
+      DORA_PG_PASSWORD: ${POSTGRES_PASSWORD:-dora}
+      DORA_PG_DATABASE: ${POSTGRES_DB:-dora}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  grafana-data:
