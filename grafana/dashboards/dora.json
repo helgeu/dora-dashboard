@@ -67,10 +67,12 @@
         },
         "query": "SELECT DISTINCT target_branch FROM pull_requests WHERE project = '$project' AND target_branch IS NOT NULL ORDER BY 1",
         "refresh": 2,
-        "includeAll": false,
+        "includeAll": true,
+        "allValue": null,
+        "multi": true,
         "current": {
-          "text": "main",
-          "value": "main"
+          "text": "All",
+          "value": "$__all"
         }
       },
       {
@@ -200,7 +202,7 @@
           },
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"Lead time\" FROM pull_requests WHERE project = '$project' AND status = 'completed' AND closed_at >= created_at AND target_branch = '$target_branch' AND repository IN (${repository:sqlstring}) AND $__timeFilter(closed_at)"
+          "rawSql": "SELECT round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"Lead time\" FROM pull_requests WHERE project = '$project' AND status = 'completed' AND closed_at >= created_at AND target_branch IN (${target_branch:sqlstring}) AND repository IN (${repository:sqlstring}) AND $__timeFilter(closed_at)"
         }
       ]
     },
@@ -291,7 +293,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "h",
+          "unit": "percent",
           "decimals": 1,
           "noValue": "n/a",
           "color": {
@@ -523,7 +525,7 @@
           },
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('week', closed_at) AS time, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"p50 (median)\", round((percentile_cont(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"p75\" FROM pull_requests WHERE project = '$project' AND status = 'completed' AND closed_at >= created_at AND target_branch = '$target_branch' AND repository IN (${repository:sqlstring}) AND $__timeFilter(closed_at) GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT date_trunc('week', closed_at) AS time, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"p50 (median)\", round((percentile_cont(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at))/3600.0))::numeric, 1) AS \"p75\" FROM pull_requests WHERE project = '$project' AND status = 'completed' AND closed_at >= created_at AND target_branch IN (${target_branch:sqlstring}) AND repository IN (${repository:sqlstring}) AND $__timeFilter(closed_at) GROUP BY 1 ORDER BY 1"
         }
       ]
     },
@@ -728,7 +730,7 @@
           },
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT finished_at AS \"time\", pipeline, stage, environment, result, branch, url FROM deployments WHERE project = '$project' AND finished_at IS NOT NULL AND pipeline IN (${pipeline:sqlstring}) AND $__timeFilter(finished_at) ORDER BY finished_at DESC LIMIT 100"
+          "rawSql": "SELECT finished_at AS \"time\", pipeline, stage, environment, result, branch, url FROM deployments WHERE project = '$project' AND environment = '$environment' AND finished_at IS NOT NULL AND pipeline IN (${pipeline:sqlstring}) AND $__timeFilter(finished_at) ORDER BY finished_at DESC LIMIT 100"
         }
       ]
     }

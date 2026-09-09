@@ -251,7 +251,7 @@ def main() -> int:
     parser.add_argument("--project", required=True, help="Azure DevOps project name")
     parser.add_argument("--since", default=default_since(), help=f"Start date YYYY-MM-DD. Default: {default_since()}.")
     parser.add_argument("--output-dir", default=".", help="Directory for CSV + summary output. Default: current dir.")
-    parser.add_argument("--target-branch", default="main", help="Branch treated as trunk for lead time + deploys. Default: main.")
+    parser.add_argument("--target-branch", default="main", help="Branch(es) treated as trunk for lead time + deploys. Comma-separated for several (e.g. main,master). Default: main.")
     parser.add_argument("--prod-env", default="prod", help="Environment name to headline. Default: prod.")
     parser.add_argument("--pat", help="Azure DevOps PAT (else falls back to az login, like the sibling scripts).")
     parser.add_argument("--deploy-include-pattern", help="Override deploy-stage include regex passed to ado-deploy-metrics.")
@@ -280,7 +280,7 @@ def main() -> int:
         if args.pat:
             cmd += ["--pat", args.pat]
         run(cmd)
-        lead = lead_time_from_prs(prs_csv, {args.target_branch} if args.target_branch else set())
+        lead = lead_time_from_prs(prs_csv, {b.strip() for b in args.target_branch.split(",") if b.strip()} if args.target_branch else set())
 
     if not args.skip_deploys:
         metrics = resolve_sibling("ado-deploy-metrics")

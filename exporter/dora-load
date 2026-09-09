@@ -82,6 +82,7 @@ def map_deployments(rows, org, project):
             "week": r.get("week") or None,
             "pipeline_id": r.get("pipeline_id") or None,
             "pipeline": r.get("pipeline") or None,
+            "repository": r.get("repository") or None,
             "build_number": r.get("build_number") or None,
             "environment": r.get("environment") or None,
             "result": r.get("result") or None,
