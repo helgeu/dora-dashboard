@@ -199,7 +199,7 @@ def build_rows(
     include_re: re.Pattern[str],
     exclude_re: re.Pattern[str],
     env_re: re.Pattern[str],
-    target_branch: str | None,
+    target_branches: set[str],
     verbose: bool,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
@@ -218,8 +218,9 @@ def build_rows(
 
         for build in builds:
             branch = (build.get("sourceBranch") or "").removeprefix("refs/heads/")
-            if target_branch and branch != target_branch:
+            if target_branches and branch not in target_branches:
                 continue
+            repository = (build.get("repository") or {}).get("name", "")
             timeline = client.get_timeline(build["id"])
             if not timeline:
                 continue
@@ -241,6 +242,7 @@ def build_rows(
                         "week": iso_week(finished) if finished else "",
                         "pipeline_id": str(def_id),
                         "pipeline": def_name,
+                        "repository": repository,
                         "build_id": str(build["id"]),
                         "build_number": build.get("buildNumber", ""),
                         "stage": name,
@@ -259,7 +261,7 @@ def build_rows(
 
 def write_csv(rows: list[dict[str, str]], output_path: str) -> None:
     fieldnames = [
-        "finished_at", "week", "pipeline_id", "pipeline", "build_id", "build_number",
+        "finished_at", "week", "pipeline_id", "pipeline", "repository", "build_id", "build_number",
         "stage", "environment", "result", "success", "branch", "source_version",
         "started_at", "url",
     ]
@@ -370,7 +372,7 @@ def main() -> int:
                         help="Regex that removes gate/approval stages (e.g. 'Validate deploy to ...').")
     parser.add_argument("--env-pattern", default=DEFAULT_ENV_PATTERN,
                         help="Regex whose first group is the environment token.")
-    parser.add_argument("--target-branch", help="Only count deployments from this branch (e.g. main).")
+    parser.add_argument("--target-branch", help="Only count deployments from these branches. Comma-separated for several trunks (e.g. main,master).")
     parser.add_argument("--output", default="ado_deployments.csv", help="Per-stage CSV path. Default: ado_deployments.csv")
     parser.add_argument("--summary", action="store_true", help="Print DORA roll-up to stderr and write <output>.summary.json")
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
@@ -395,7 +397,8 @@ def main() -> int:
         name_re = re.compile(args.name_filter, re.IGNORECASE)
         definitions = [d for d in definitions if name_re.search(d["name"])]
 
-    rows = build_rows(client, definitions, args.since, include_re, exclude_re, env_re, args.target_branch, args.verbose)
+    target_branches = {b.strip() for b in (args.target_branch or "").split(",") if b.strip()}
+    rows = build_rows(client, definitions, args.since, include_re, exclude_re, env_re, target_branches, args.verbose)
     write_csv(rows, args.output)
     print(f"Wrote {len(rows)} deployment-stage rows to {args.output}")
 

@@ -37,7 +37,7 @@
           "uid": "dora-postgres"
         },
         "query": "SELECT DISTINCT project FROM deployments ORDER BY 1",
-        "refresh": 2,
+        "refresh": 1,
         "includeAll": false,
         "current": {}
       },
@@ -50,7 +50,7 @@
           "uid": "dora-postgres"
         },
         "query": "SELECT DISTINCT area_path FROM bugs WHERE project = '$project' AND area_path IS NOT NULL ORDER BY 1",
-        "refresh": 2,
+        "refresh": 1,
         "includeAll": true,
         "allValue": null,
         "multi": true,
@@ -99,7 +99,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "h",
+          "unit": "none",
           "decimals": 1,
           "noValue": "n/a",
           "color": {

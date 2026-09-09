@@ -37,7 +37,7 @@
           "uid": "dora-postgres"
         },
         "query": "SELECT DISTINCT project FROM deployments ORDER BY 1",
-        "refresh": 2,
+        "refresh": 1,
         "includeAll": false,
         "current": {}
       },
@@ -49,8 +49,8 @@
           "type": "postgres",
           "uid": "dora-postgres"
         },
-        "query": "SELECT DISTINCT repository FROM pull_requests WHERE project = '$project' AND repository IS NOT NULL ORDER BY 1",
-        "refresh": 2,
+        "query": "SELECT repository FROM pull_requests WHERE project = '$project' AND repository IS NOT NULL UNION SELECT repository FROM deployments WHERE project = '$project' AND repository IS NOT NULL ORDER BY 1",
+        "refresh": 1,
         "includeAll": true,
         "allValue": null,
         "multi": true,
@@ -68,7 +68,7 @@
           "uid": "dora-postgres"
         },
         "query": "SELECT DISTINCT pipeline FROM deployments WHERE project = '$project' AND pipeline IS NOT NULL ORDER BY 1",
-        "refresh": 2,
+        "refresh": 1,
         "includeAll": true,
         "allValue": null,
         "multi": true,
@@ -282,7 +282,7 @@
     {
       "type": "timeseries",
       "title": "Deployment duration (median minutes, by env)",
-      "description": "Median stage runtime (started -> finished) per week and environment. An operational efficiency / batch-size signal for the deployment pipeline. Filtered by Pipeline.",
+      "description": "Median stage runtime (started -> finished) per week and environment. An operational efficiency / batch-size signal for the deployment pipeline. Filtered by Repository and Pipeline.",
       "datasource": {
         "type": "postgres",
         "uid": "dora-postgres"
@@ -326,14 +326,14 @@
           },
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('week', finished_at) AS time, environment AS metric, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finished_at - started_at))/60.0))::numeric, 1) AS median_min FROM deployments WHERE project = '$project' AND pipeline IN (${pipeline:sqlstring}) AND started_at IS NOT NULL AND finished_at IS NOT NULL AND finished_at >= started_at AND $__timeFilter(finished_at) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT date_trunc('week', finished_at) AS time, environment AS metric, round((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finished_at - started_at))/60.0))::numeric, 1) AS median_min FROM deployments WHERE project = '$project' AND repository IN (${repository:sqlstring}) AND pipeline IN (${pipeline:sqlstring}) AND started_at IS NOT NULL AND finished_at IS NOT NULL AND finished_at >= started_at AND $__timeFilter(finished_at) GROUP BY 1, 2 ORDER BY 1"
         }
       ]
     },
     {
       "type": "table",
       "title": "Pipeline reliability (deploy fail rate)",
-      "description": "Per-pipeline deployment count and failure rate over the selected time range. Surfaces flaky pipelines worth hardening. Filtered by Pipeline. Note: failures with no recorded timestamp are excluded by the time filter.",
+      "description": "Per-pipeline deployment count and failure rate over the selected time range. Surfaces flaky pipelines worth hardening. Filtered by Repository and Pipeline. Note: failures with no recorded timestamp are excluded by the time filter.",
       "datasource": {
         "type": "postgres",
         "uid": "dora-postgres"
@@ -407,7 +407,89 @@
           },
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT pipeline, count(*) AS deploys, count(*) FILTER (WHERE NOT success) AS fails, round(100.0 * count(*) FILTER (WHERE NOT success) / NULLIF(count(*), 0), 1) AS \"fail %\" FROM deployments WHERE project = '$project' AND pipeline IN (${pipeline:sqlstring}) AND finished_at IS NOT NULL AND $__timeFilter(finished_at) GROUP BY 1 ORDER BY 4 DESC, 2 DESC"
+          "rawSql": "SELECT pipeline, count(*) AS deploys, count(*) FILTER (WHERE NOT success) AS fails, round(100.0 * count(*) FILTER (WHERE NOT success) / NULLIF(count(*), 0), 1) AS \"fail %\" FROM deployments WHERE project = '$project' AND repository IN (${repository:sqlstring}) AND pipeline IN (${pipeline:sqlstring}) AND finished_at IS NOT NULL AND $__timeFilter(finished_at) GROUP BY 1 ORDER BY 4 DESC, 2 DESC"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Recent pipeline failures",
+      "description": "Failed deployment stages over the selected time range, newest first. Use the build link to open the run and inspect the error. Filtered by Repository and Pipeline.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "dora-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "url"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open build",
+                    "url": "${__value.text}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "result"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "failed": {
+                        "color": "red",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dora-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT finished_at AS \"time\", pipeline, repository, stage, environment, branch, result, url FROM deployments WHERE project = '$project' AND repository IN (${repository:sqlstring}) AND pipeline IN (${pipeline:sqlstring}) AND NOT success AND finished_at IS NOT NULL AND $__timeFilter(finished_at) ORDER BY finished_at DESC LIMIT 100"
         }
       ]
     }

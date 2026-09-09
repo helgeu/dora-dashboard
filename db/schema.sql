@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS deployments (
     week           TEXT,
     pipeline_id    TEXT,
     pipeline       TEXT,
+    repository     TEXT,
     build_number   TEXT,
     environment    TEXT,
     result         TEXT,          -- succeeded / failed
@@ -40,8 +41,12 @@ CREATE TABLE IF NOT EXISTS deployments (
     url            TEXT,
     PRIMARY KEY (organization, project, build_id, stage)
 );
+-- Backfill the column on stores whose volume predates it (schema.sql runs only
+-- on first init, so an idempotent ALTER keeps existing databases in sync).
+ALTER TABLE deployments ADD COLUMN IF NOT EXISTS repository TEXT;
 CREATE INDEX IF NOT EXISTS deployments_finished_idx ON deployments (finished_at);
 CREATE INDEX IF NOT EXISTS deployments_env_idx      ON deployments (environment);
+CREATE INDEX IF NOT EXISTS deployments_repo_idx     ON deployments (repository);
 
 -- Pull requests (source: ado-prs-export ado_prs.csv). Lead-time proxy.
 CREATE TABLE IF NOT EXISTS pull_requests (

@@ -10,7 +10,7 @@ set -euo pipefail
 : "${AZURE_DEVOPS_EXT_PAT:?set AZURE_DEVOPS_EXT_PAT (ADO PAT) in .env}"
 
 SINCE="${DORA_SINCE:-$(python3 -c 'import datetime as d; y=d.date.today().year-1; print(f"{y}-10-01")')}"
-TARGET_BRANCH="${DORA_TARGET_BRANCH:-main}"
+TARGET_BRANCH="${DORA_TARGET_BRANCH:-main}"  # comma-separated for several trunks, e.g. main,master
 PROD_ENV="${DORA_PROD_ENV:-prod}"
 INTERVAL="${REFRESH_INTERVAL_SECONDS:-3600}"
 OUT_DIR="/tmp/dora-out"
